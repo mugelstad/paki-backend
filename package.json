@@ -1,0 +1,18 @@
+{
+  "name": "pakey-backend",
+  "version": "1.0.0",
+  "description": "For short-term city residents, PAKEY is the information platform that provides convenient house switching options.",
+  "main": "server.js",
+  "dependencies": {
+    "body-parser": "^1.18.3",
+    "express": "^4.16.3",
+    "mongoose": "^5.2.6"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "author": "Elaine Liu and Maggie Ugelstad",
+  "license": "ISC"
+}
