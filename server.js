@@ -91,7 +91,7 @@ app.post('/myWork', function(req, res){
 })
 
 //Handling Pictures
-app.post('/upload',  upload.array('photos[]', 3), function(req, res){
+app.post('/upload',  upload.array('photos[]', 6), function(req, res){
   console.log(req.files)
 
   var saved = req.files.map(item => {
@@ -115,8 +115,8 @@ app.get('/photos', function(req, res){
     if (err){
       res.json({success: false})
     }
-    console.log('Picture:', JSON.stringify(pic))
-    res.json({success: true});
+    res.json({success: true, picture: JSON.stringify(pic)})
+    // res.json({success: true});
   })
 })
 

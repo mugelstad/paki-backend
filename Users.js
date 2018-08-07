@@ -44,6 +44,9 @@ var houseSchema = new Schema({
   monthlyRent: {
     type: Number,
     required: true
+  },
+  images: {
+    type: Array
   }
 })
 
