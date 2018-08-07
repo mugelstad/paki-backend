@@ -58,12 +58,21 @@ var workSchema = new Schema ({
    }
 })
 
+var pictureSchema = new Schema({
+  img: {
+    data: Buffer,
+    contentType: String
+  }
+})
+
 var User = mongoose.model('User', userSchema);
 var House = mongoose.model('House', houseSchema)
 var Work = mongoose.model('Work', workSchema)
+var Picture = mongoose.model('Picture', pictureSchema)
 
 module.exports = {
   User,
   House,
-  Work
+  Work,
+  Picture
 };

@@ -4,9 +4,15 @@ var app = express();
 var bodyParser = require('body-parser');
 app.use(bodyParser.json())
 
+//Multer to upload Pictures
+var multer = require('multer');
+
+var upload = multer({ dest: 'uploads/' })
+var fs = require('fs');
+
 //Require mongoose for database
 var mongoose = require('mongoose');
-var { User, House, Work }=  require('./Users.js');
+var { User, House, Work, Picture } =  require('./Users.js');
 
 mongoose.connect(process.env.MONGODB_URI, {useNewUrlParser: true})
 mongoose.connection.on('error', function(error){
@@ -83,6 +89,35 @@ app.post('/myWork', function(req, res){
   })
   .catch(error => res.status(500).end(error.message))
 })
+
+//Handling Pictures
+app.post('/upload',  upload.single('photo'), function(req, res){
+  console.log(req.file)
+  // return;
+
+  var picture = new Picture();
+   var bitMap = fs.readFileSync(req.file.path)
+   var data = new Buffer(bitMap).toString('base64');
+   picture.img.data = data;
+   picture.img.contentType = req.file.mimetype;
+   picture.save()
+   .then( () => {
+     console.log('success saving image')
+     res.send({success: true})
+   })
+   .catch(error => console.log('Error:', error))
+})
+
+app.get('/upload', function(req, res){
+  Picture.find({/*all*/}, (err, pic) => {
+    if (err){
+      console.log('ERROR', err)
+    }
+    console.log('PICTURE', JSON.stringify(pic))
+    res.end();
+  })
+})
+
 
 app.listen(process.env.PORT || 1337);
 console.log('listening on port 1337')
