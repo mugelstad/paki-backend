@@ -91,30 +91,32 @@ app.post('/myWork', function(req, res){
 })
 
 //Handling Pictures
-app.post('/upload',  upload.single('photo'), function(req, res){
-  console.log(req.file)
-  // return;
+app.post('/upload',  upload.array('photos[]', 3), function(req, res){
+  console.log(req.files)
 
-  var picture = new Picture();
-   var bitMap = fs.readFileSync(req.file.path)
-   var data = new Buffer(bitMap).toString('base64');
-   picture.img.data = data;
-   picture.img.contentType = req.file.mimetype;
-   picture.save()
-   .then( () => {
-     console.log('success saving image')
-     res.send({success: true})
-   })
-   .catch(error => console.log('Error:', error))
+  var saved = req.files.map(item => {
+    var picture = new Picture();
+     var bitMap = fs.readFileSync(item.path)
+     var data = new Buffer(bitMap).toString('base64');
+     picture.img.data = data;
+     picture.img.contentType = item.mimetype;
+     return picture.save();
+
+  })
+
+  Promise.all(saved).then( () => {
+    console.log('success saving image')
+    res.send({success: true})
+  }).catch(error => console.error(error))
 })
 
-app.get('/upload', function(req, res){
+app.get('/photos', function(req, res){
   Picture.find({/*all*/}, (err, pic) => {
     if (err){
-      console.log('ERROR', err)
+      res.json({success: false})
     }
-    console.log('PICTURE', JSON.stringify(pic))
-    res.end();
+    console.log('Picture:', JSON.stringify(pic))
+    res.json({success: true});
   })
 })
 
