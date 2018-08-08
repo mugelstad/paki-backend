@@ -22,6 +22,13 @@ mongoose.connection.on('connected', function(){
   console.log('connected to mongoose')
 })
 
+//Cors
+app.use(function(req, res, next) {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+  next();
+});
+
 //Routes
 app.post('/register', function(req, res){
   //Create new User
@@ -90,14 +97,15 @@ app.post('/myWork', function(req, res){
   .catch(error => res.status(500).end(error.message))
 })
 
-//Handling Pictures
+//Uploading pictures
 app.post('/upload',  upload.array('photos[]', 6), function(req, res){
   console.log(req.files)
 
   var saved = req.files.map(item => {
     var picture = new Picture();
      var bitMap = fs.readFileSync(item.path)
-     var data = new Buffer(bitMap).toString('base64');
+     var data = new Buffer(bitMap)//.toString('base64');
+     console.log(data.length)
      picture.img.data = data;
      picture.img.contentType = item.mimetype;
      return picture.save();
@@ -110,12 +118,19 @@ app.post('/upload',  upload.array('photos[]', 6), function(req, res){
   }).catch(error => console.error(error))
 })
 
+//Retrieving pictures
 app.get('/photos', function(req, res){
   Picture.find({/*all*/}, (err, pic) => {
     if (err){
       res.json({success: false})
     }
-    res.json({success: true, picture: JSON.stringify(pic)})
+
+    var pictures = [];
+    pic.map(pic => {
+      pictures = pictures.concat([pic.img.data.toString('base64')]);
+    })
+
+    res.json({success: true, pictures: pictures})
     // res.json({success: true});
   })
 })
