@@ -94,6 +94,7 @@ app.use(passport.session());
 var auth = require('./routes/auth')
 app.use('/', auth(passport));
 
+
 //When User wants to update house information
 app.post('/myHouse', function(req, res) {
   //Create new House
@@ -103,12 +104,14 @@ app.post('/myHouse', function(req, res) {
   .save()
   .then(house => {
     //Find User by ID and add a House feature to the User
-    User.findByIdAndUpdate(req.body._id, {$push:{house: house}}, {new: true}, (err, user) => {
+    User.findByIdAndUpdate(req.body.userId, {$push:{house: house}}, {new: true}, (err, user) => {
       if (err){
         res.status(500).end(err.message)
       }
       if (user){
         res.json({ user: user, success: true })
+      } else {
+        res.json({success: true})
       }
     })
   })
@@ -138,25 +141,41 @@ app.post('/myWork', function(req, res){
 
 //Uploading pictures
 app.post('/upload',  upload.array('photos[]', 6), function(req, res){
-  console.log(req.files)
-  console.log('@@upload', req.user)
+  var houseId = req.houseId
 
   var saved = req.files.map(item => {
     var picture = new Picture();
      var bitMap = fs.readFileSync(item.path)
      var data = new Buffer(bitMap)//.toString('base64');
-     console.log(data.length)
      picture.img.data = data;
      picture.img.contentType = item.mimetype;
      return picture.save();
-
   })
 
   Promise.all(saved).then( () => {
-    console.log('success saving image')
     res.send({success: true})
   }).catch(error => console.error(error))
 })
+
+//Rendering pictures for each individual house
+app.get('/switchPhotos', function(req, res){
+  //Find house by houseId4
+  House.findById(req.query.houseId)
+  .populate('images')
+  .exec((err, result) => {
+    if (err) {
+      res.json({success: false})
+    }
+    else {
+      var pictures = [];
+      result.images.map(pic => {
+        pictures = pictures.concat([pic.img.data.toString('base64')]);
+      })
+      res.json({success: true, pictures: pictures})
+    }
+  })
+})
+
 
 //Retrieving pictures
 app.get('/photos', function(req, res){
@@ -169,12 +188,23 @@ app.get('/photos', function(req, res){
     pic.map(pic => {
       pictures = pictures.concat([pic.img.data.toString('base64')]);
     })
-
     res.json({success: true, pictures: pictures})
-    // res.json({success: true});
   })
 })
 
+app.get('/houses', function(req, res){
+  House.find({/*all*/}, (err, h) => {
+    if (err){
+      res.json({success: false})
+    }
+
+    var houses = [];
+    h.map(house => {
+      houses = houses.concat([house]);
+    })
+    res.json({success: true, houses: houses})
+  })
+})
 
 app.listen(process.env.PORT || 1337);
 console.log('listening on port 1337')
