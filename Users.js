@@ -45,9 +45,11 @@ var houseSchema = new Schema({
     type: Number,
     required: true
   },
-  images: {
-    type: Array
-  }
+  images: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Picture',
+      required: false
+    }]
 })
 
 var workSchema = new Schema ({
