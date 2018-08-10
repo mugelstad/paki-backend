@@ -3,6 +3,12 @@ var express = require('express');
 var app = express();
 var bodyParser = require('body-parser');
 app.use(bodyParser.json())
+//passport configuration, could have more /auth/facebook
+var passport = require('passport');
+var LocalStrategy = require('passport-local').Strategy
+var GoogleStrategy = require('passport-google-oauth20').Strategy;
+var FacebookStrategy = require('passport-facebook').Strategy;
+var session = require('express-session')
 
 //Multer to upload Pictures
 var multer = require('multer');
@@ -18,7 +24,7 @@ mongoose.connect(process.env.MONGODB_URI, {useNewUrlParser: true})
 mongoose.connection.on('error', function(error){
   console.log(error)
 })
-mongoose.connection.on('connected', function(){
+mongoose.connection.on('connected', function() {
   console.log('connected to mongoose')
 })
 
@@ -29,41 +35,70 @@ app.use(function(req, res, next) {
   next();
 });
 
-//Routes
-app.post('/register', function(req, res){
-  //Create new User
-  new User({username: req.body.username, password: req.body.password})
-  .save()
-  .then(user => res.json({ user: user, success: true }))
-  .catch(error => res.status(500).end(error.message))
-  //Direct User to User homepage
+app.use(session({
+  secret:'cat',
+  cookie:{
+    maxAge: 60*60*1000
+  }
+}))
+
+
+//THIS IS ONLY SETTING UP PASSPORT
+passport.serializeUser((user, done) => {
+  // the 1st param passed to done is always the error object.
+  // the id in the 2nd param is not the profile.id
+  // this id is the id being assigned by mongo
+  // the reason we do this instead of profile id is because
+  // when we use other strategies like Twitter or Facebook
+  // we can't assume that they will have a google id
+  // so we use the one assigned by mongo
+
+  // this sets the user.id as the cookie
+  done(null, user.id);
 });
 
+// takes the id that we stuffed in the cookie from serialize and turn it back into a user model
+passport.deserializeUser( async (id, done) => {
+  const user = await User.findById( id );
+  done(null, user);
+});
 
-app.post('/login', function(req, res){
-  //Use passport to authenticate user
-  var username = req.body.username;
-  //Find user by username
-  User.findOne({username: username}).exec(function(err, user){
-    if (err){
-      res.status(500).end(err.message);
-    }
-    if (user) {
-      if (user.password === req.body.password){
-        res.send({success: true})
-      } else {
-        res.send({success: false})
+passport.use(new LocalStrategy(
+  function(username, password, done) {
+  // Find the user with the given username
+    User.findOne({ username: username }, function (err, user) {
+      // if there's an error, finish trying to authenticate (auth failed)
+      if (err) {
+        console.log(err);
+        return done(err);
       }
-    } else {
-      res.send({sucess: false})
-    }
-  })
-  //Direct User to user homepage
-})
+      // if no user present, auth failed
+      if (!user) {
+        console.log(user);
+        console.log('@@LocalStrategy, no user')
+        return done(null, false, { message: 'Incorrect username.' });
+      }
+      // if passwords do not match, auth failed
+      if (user.password !== password) {
+        return done(null, false, { message: 'Incorrect password.' });
+      }
+      // auth has has succeeded
+      return done(null, user);
+    });
+  }
+));
+// app.use(express.session({ secret: 'cat' }));
+app.use(passport.initialize());
+app.use(passport.session());
+
+var auth = require('./routes/auth')
+app.use('/', auth(passport));
+
 
 //When User wants to update house information
 app.post('/myHouse', function(req, res) {
   //Create new House
+
   var house = new House({monthlyRent: req.body.monthlyRent, sqft: req.body.sqft,
     latitude: req.body.latitude, longitude: req.body.longitude})
   .save()
@@ -86,6 +121,7 @@ app.post('/myHouse', function(req, res) {
 
 app.post('/myWork', function(req, res){
   //Create new Work
+
   var work = new Work({latitude: req.body.latitude, longitude: req.body.longitude})
   .save()
   .then(work => {
@@ -106,6 +142,7 @@ app.post('/myWork', function(req, res){
 //Uploading pictures
 app.post('/upload',  upload.array('photos[]', 6), function(req, res){
   var houseId = req.houseId
+
   var saved = req.files.map(item => {
     var picture = new Picture();
      var bitMap = fs.readFileSync(item.path)
@@ -120,6 +157,7 @@ app.post('/upload',  upload.array('photos[]', 6), function(req, res){
   }).catch(error => console.error(error))
 })
 
+//Rendering pictures for each individual house
 app.get('/switchPhotos', function(req, res){
   //Find house by houseId4
   House.findById(req.query.houseId)
@@ -153,41 +191,6 @@ app.get('/photos', function(req, res){
     res.json({success: true, pictures: pictures})
   })
 })
-
-
-
-    // House.findById(query.parmas.houseId, (err, house) => {
-    //   if (err) {
-    //     res.json({success: false})
-    //   } else {
-    //     var pictures = [];
-    //     //Find images by _id and render in Switch Screen
-    //     house.images.map(imageId => {
-    //       Picture.findById(imageId, (err, picture) => {
-    //         if (err){
-    //           res.json({success: false})
-    //         } else {
-    //           pictures = pictures.concat([picture.img.data.toString('base64')])
-    //         }
-    //       })
-    //     })
-    //     res.json({success: true, pictures: pictures})
-    //   }
-
-
-  // Picture.find({/*all*/}, (err, pic) => {
-  //   if (err){
-  //     res.json({success: false})
-  //   }
-  //
-  //   var pictures = [];
-  //   pic.map(pic => {
-  //     pictures = pictures.concat([pic.img.data.toString('base64')]);
-  //   })
-  //   res.json({success: true, pictures: pictures})
-  // })
-
-
 
 app.get('/houses', function(req, res){
   House.find({/*all*/}, (err, h) => {
