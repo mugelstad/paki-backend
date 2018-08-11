@@ -158,7 +158,7 @@ app.post('/upload',  upload.array('photos[]', 6), function(req, res){
 })
 
 //Rendering pictures for each individual house
-app.get('/switchPhotos', function(req, res){
+app.get('/switchInfo', function(req, res){
   //Find house by houseId4
   House.findById(req.query.houseId)
   .populate('images')
@@ -171,7 +171,7 @@ app.get('/switchPhotos', function(req, res){
       result.images.map(pic => {
         pictures = pictures.concat([pic.img.data.toString('base64')]);
       })
-      res.json({success: true, pictures: pictures})
+      res.json({success: true, pictures: pictures, house: result})
     }
   })
 })
