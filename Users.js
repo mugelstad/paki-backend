@@ -22,10 +22,11 @@ var userSchema = new Schema({
     ref: 'Work',
     required: false
   },
-  interested: {
-    type: Array,
+  interested: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'House',
     required: false
-  }
+  }]
 });
 
 var houseSchema = new Schema({
@@ -49,7 +50,10 @@ var houseSchema = new Schema({
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Picture',
       required: false
-    }]
+    }],
+  address: {
+    type: String
+  }
 })
 
 var workSchema = new Schema ({
@@ -60,6 +64,9 @@ var workSchema = new Schema ({
    longitude: {
      type: String,
      required: true
+   },
+   address: {
+     type: String
    }
 })
 
