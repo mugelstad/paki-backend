@@ -100,11 +100,11 @@ app.post('/myHouse', function(req, res) {
   //Create new House
 
   var house = new House({monthlyRent: req.body.monthlyRent, sqft: req.body.sqft,
-    latitude: req.body.latitude, longitude: req.body.longitude})
+    latitude: req.body.latitude, longitude: req.body.longitude, address: req.body.address})
   .save()
   .then(house => {
     //Find User by ID and add a House feature to the User
-    User.findByIdAndUpdate(req.body.userId, {$push:{house: house}}, {new: true}, (err, user) => {
+    User.findByIdAndUpdate(req.user._id, {$push:{house: house}}, {new: true}, (err, user) => {
       if (err){
         res.status(500).end(err.message)
       }
@@ -121,13 +121,16 @@ app.post('/myHouse', function(req, res) {
 
 app.post('/myWork', function(req, res){
   //Create new Work
-
-  var work = new Work({latitude: req.body.latitude, longitude: req.body.longitude})
+  console.log('@@mywork', req.user)
+  var work = new Work({
+    latitude: req.body.latitude,
+    longitude: req.body.longitude,
+    address: req.body.address})
   .save()
   .then(work => {
-    console.log(work);
+    console.log('@@mywork', work);
     //Find User by ID and add a Work feature to the User
-    User.findByIdAndUpdate(req.body._id, {$push:{work: work}}, {new: true}, (err, user) => {
+    User.findByIdAndUpdate(req.user._id, {$push:{work: work}}, {new: true}, (err, user) => {
       if (err){
         res.status(500).end(err.message)
       }
@@ -159,21 +162,45 @@ app.post('/upload',  upload.array('photos[]', 6), function(req, res){
 
 //Rendering pictures for each individual house
 app.get('/switchInfo', function(req, res){
-  //Find house by houseId4
+  console.log('@@switchInfo', req.user)
+  console.log('@@switchInfo houseid', req.query.houseId);
+  //otherhouse
+  var pictures = [];
+  var otherhouse;
+  var userhouse;
   House.findById(req.query.houseId)
   .populate('images')
   .exec((err, result) => {
+    // console.log('@@switchInfo populated',result)
     if (err) {
       res.json({success: false})
     }
     else {
-      var pictures = [];
       result.images.map(pic => {
         pictures = pictures.concat([pic.img.data.toString('base64')]);
       })
-      res.json({success: true, pictures: pictures, house: result})
+      otherhouse = result;
+      // console.log('@@switchInfo populated2', otherhouse)
     }
   })
+
+  House.findById(req.user.house)
+  .then(house => {
+    userhouse = house
+    console.log('@@switchInfo populated3', otherhouse)
+    console.log('@@switchinfo userhousefound', house)
+    var response = {
+      success: true,
+      pictures: pictures,
+      otherhouse: otherhouse,
+      userhouse: userhouse
+    }
+    console.log(response)
+    res.json(response)
+  })
+  .catch(err => console.log(err))
+
+
 })
 
 
@@ -193,18 +220,67 @@ app.get('/photos', function(req, res){
 })
 
 app.get('/houses', function(req, res){
+  console.log('@@made it to /houses');
   House.find({/*all*/}, (err, h) => {
     if (err){
       res.json({success: false})
     }
-
-    var houses = [];
-    h.map(house => {
-      houses = houses.concat([house]);
-    })
-    res.json({success: true, houses: houses})
+    console.log('@@houses', h);
+    // var houses = [];
+    // h.map(house => {
+    //   houses = houses.concat([house]);
+    // })
+    res.json({success: true, houses: h})
   })
 })
+
+app.post('/saveInterested', function(req, res){
+  //find the user, add in the message, update the user
+  User.findByIdAndUpdate(req.user._id,
+    {$push: {interested: req.body.otherhouseId}},
+    {'new': true}, (err, result) => {
+      if (err) {
+        console.log(err)
+        res.json({success: false, error: err})
+      }
+      else {
+        res.json({success: true})
+      }
+    }
+  )
+})
+
+app.post('/removeInterested', function(req, res){
+  //find the user, add in the message, update the user
+  User.findByIdAndUpdate(req.user._id,
+    {$pull: {interested: req.body.otherhouseId}},
+    (err, result) => {
+    if(err) {
+      res.json({success: false, error: err})
+    } else {
+      res.json({success: true})
+    }
+  })
+})
+
+app.get('/saved', function(req, res) {
+  var houses;
+  User.findById(req.user._id)
+  .populate('interested')
+  .exec((err, result) => {
+    console.log('@@/saved exec', result)
+    if (err) {
+      res.json({success: false, error: err})
+    } else {
+      res.json({success: true, houses: result.interested})
+    }
+  })
+  // .catch(error => {
+  //   console.log('@@/saved',error)
+  //   res.json({success: false, error: error})
+  // })
+})
+
 
 app.listen(process.env.PORT || 1337);
 console.log('listening on port 1337')
