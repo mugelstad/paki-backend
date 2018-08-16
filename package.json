@@ -14,7 +14,9 @@
     "passport-facebook": "^2.1.1",
     "passport-google-oauth20": "^1.0.0",
     "passport-local": "^1.0.0",
-    "session": "^0.1.0"
+    "react-native-stripe": "^1.2.2",
+    "session": "^0.1.0",
+    "stripe": "^6.7.0"
   },
   "devDependencies": {},
   "scripts": {
