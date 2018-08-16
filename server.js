@@ -18,7 +18,8 @@ var fs = require('fs');
 
 //Require mongoose for database
 var mongoose = require('mongoose');
-var { User, House, Work, Picture } =  require('./Users.js');
+var { User, House, Work, Picture, Offer } =  require('./Users.js');
+// const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 mongoose.connect(process.env.MONGODB_URI, {useNewUrlParser: true})
 mongoose.connection.on('error', function(error){
@@ -74,8 +75,8 @@ passport.use(new LocalStrategy(
       }
       // if no user present, auth failed
       if (!user) {
-        console.log(user);
-        console.log('@@LocalStrategy, no user')
+        //console.log(user);
+        //console.log('@@LocalStrategy, no user')
         return done(null, false, { message: 'Incorrect username.' });
       }
       // if passwords do not match, auth failed
@@ -94,16 +95,17 @@ app.use(passport.session());
 var auth = require('./routes/auth')
 app.use('/', auth(passport));
 
+
 //When User wants to update house information
 app.post('/myHouse', function(req, res) {
   //Create new House
 
   var house = new House({monthlyRent: req.body.monthlyRent, sqft: req.body.sqft,
-    latitude: req.body.latitude, longitude: req.body.longitude})
+    latitude: req.body.latitude, longitude: req.body.longitude, address: req.body.address})
   .save()
   .then(house => {
     //Find User by ID and add a House feature to the User
-    User.findByIdAndUpdate(req.body.userId, {$push:{house: house}}, {new: true}, (err, user) => {
+    User.findByIdAndUpdate(req.user._id, {$push:{house: house}}, {new: true}, (err, user) => {
       if (err){
         res.status(500).end(err.message)
       }
@@ -120,13 +122,16 @@ app.post('/myHouse', function(req, res) {
 
 app.post('/myWork', function(req, res){
   //Create new Work
-
-  var work = new Work({latitude: req.body.latitude, longitude: req.body.longitude})
+  //console.log('@@mywork', req.user)
+  var work = new Work({
+    latitude: req.body.latitude,
+    longitude: req.body.longitude,
+    address: req.body.address})
   .save()
   .then(work => {
-    console.log(work);
+    //console.log('@@mywork', work);
     //Find User by ID and add a Work feature to the User
-    User.findByIdAndUpdate(req.body._id, {$push:{work: work}}, {new: true}, (err, user) => {
+    User.findByIdAndUpdate(req.user._id, {$push:{work: work}}, {new: true}, (err, user) => {
       if (err){
         res.status(500).end(err.message)
       }
@@ -141,6 +146,7 @@ app.post('/myWork', function(req, res){
 //Uploading pictures
 app.post('/upload',  upload.array('photos[]', 6), function(req, res){
   var houseId = req.houseId
+
   var saved = req.files.map(item => {
     var picture = new Picture();
      var bitMap = fs.readFileSync(item.path)
@@ -155,22 +161,45 @@ app.post('/upload',  upload.array('photos[]', 6), function(req, res){
   }).catch(error => console.error(error))
 })
 
-app.get('/switchPhotos', function(req, res){
-  //Find house by houseId4
+//Rendering pictures for each individual house
+app.get('/switchInfo', function(req, res){
+  //console.log('@@switchInfo', req.user)
+  //console.log('@@switchInfo houseid', req.query.houseId);
+  //otherhouse
+  var pictures = [];
+  var otherhouse;
+  var userhouse;
   House.findById(req.query.houseId)
   .populate('images')
   .exec((err, result) => {
+    // console.log('@@switchInfo populated',result)
     if (err) {
       res.json({success: false})
     }
     else {
-      var pictures = [];
       result.images.map(pic => {
         pictures = pictures.concat([pic.img.data.toString('base64')]);
       })
-      res.json({success: true, pictures: pictures})
+      otherhouse = result;
+      // console.log('@@switchInfo populated2', otherhouse)
     }
   })
+
+  House.findById(req.user.house)
+  .then(house => {
+    userhouse = house
+    //console.log('@@switchInfo populated3', otherhouse)
+    //console.log('@@switchinfo userhousefound', house)
+    var response = {
+      success: true,
+      pictures: pictures,
+      otherhouse: otherhouse,
+      userhouse: userhouse
+    }
+    //console.log(response)
+    res.json(response)
+  })
+  .catch(err => console.log(err))
 })
 
 
@@ -189,52 +218,123 @@ app.get('/photos', function(req, res){
   })
 })
 
-
-
-    // House.findById(query.parmas.houseId, (err, house) => {
-    //   if (err) {
-    //     res.json({success: false})
-    //   } else {
-    //     var pictures = [];
-    //     //Find images by _id and render in Switch Screen
-    //     house.images.map(imageId => {
-    //       Picture.findById(imageId, (err, picture) => {
-    //         if (err){
-    //           res.json({success: false})
-    //         } else {
-    //           pictures = pictures.concat([picture.img.data.toString('base64')])
-    //         }
-    //       })
-    //     })
-    //     res.json({success: true, pictures: pictures})
-    //   }
-
-
-  // Picture.find({/*all*/}, (err, pic) => {
-  //   if (err){
-  //     res.json({success: false})
-  //   }
-  //
-  //   var pictures = [];
-  //   pic.map(pic => {
-  //     pictures = pictures.concat([pic.img.data.toString('base64')]);
-  //   })
-  //   res.json({success: true, pictures: pictures})
-  // })
-
-
-
 app.get('/houses', function(req, res){
+  //console.log('@@made it to /houses');
   House.find({/*all*/}, (err, h) => {
     if (err){
       res.json({success: false})
     }
+    //console.log('@@houses', h);
+    res.json({success: true, houses: h})
+  })
+})
 
-    var houses = [];
-    h.map(house => {
-      houses = houses.concat([house]);
+app.post('/saveInterested', function(req, res){
+  //find the user, add in the message, update the user
+  User.findByIdAndUpdate(req.user._id,
+    {$push: {interested: req.body.otherhouseId}},
+    {'new': true}, (err, result) => {
+      if (err) {
+        console.log(err)
+        res.json({success: false, error: err})
+      }
+      else {
+        res.json({success: true})
+      }
+    }
+  )
+})
+
+app.post('/removeInterested', function(req, res){
+  //find the user, add in the message, update the user
+  User.findByIdAndUpdate(req.user._id,
+    {$pull: {interested: req.body.otherhouseId}},
+    (err, result) => {
+    if(err) {
+      res.json({success: false, error: err})
+    } else {
+      res.json({success: true})
+    }
+  })
+})
+
+app.get('/saved', function(req, res) {
+  var houses;
+  User.findById(req.user._id)
+  .populate('interested')
+  .exec((err, result) => {
+    //console.log('@@/saved exec', result)
+    if (err) {
+      res.json({success: false, error: err})
+    } else {
+      res.json({success: true, houses: result.interested})
+    }
+  })
+  // .catch(error => {
+  //   console.log('@@/saved',error)
+  //   res.json({success: false, error: error})
+  // })
+})
+
+app.post('/sendOffer', function(req, res) {
+  var receiverId;
+  User.findOne({house: [req.body.otherhouseId]})
+  .then(otheruser => {
+    receiverId = otheruser._id;
+    new Offer({
+      amount: parseFloat(req.body.amount),
+      sender: req.user._id,
+      receiver: otheruser._id
     })
-    res.json({success: true, houses: houses})
+    .save((err, offer) => {
+      var criteria = {_id: { $in: [req.user._id, receiverId]}}
+      User.update(criteria,
+        {$push: {offers: offer._id}},
+        {'new': true, 'multi': true},
+        (err, result) => {
+          if (err) { res.json({ success: false })}
+          else { res.json({ success: true })}
+        }
+      )
+    })
+  });
+})
+
+app.get('/offers', function(req, res) {
+  User.findById(req.user._id)
+  .populate('offers')
+  .exec((err, result) => {
+    if (err){ console.log(err) }
+    else {
+      let otherUserArr = [];
+      // find all the different users
+      let offerArr = result.offers.slice()
+      let userId = req.user._id.toString()
+
+      offerArr.forEach(offer => {
+        // if user is the sender
+        (offer.sender.toString() === userId) ?
+          otherUserArr.push(offer.receiver) :
+          otherUserArr.push(offer.sender)
+      })
+
+      //Find all users who have interracted with logged-in user
+      var criteria = {_id: { $in: otherUserArr}}
+      User.find(criteria, (err, userResult) => {
+        res.json({ success: true, users: userResult});
+      })
+    }
+  })
+})
+
+app.get('/chat', function(req, res) {
+  console.log('@@chat', req.user._id, req.query.id)
+  Offer.find({$or:
+    [{ $and: [{sender: req.user._id}, {receiver: req.query.id}]},
+     { $and: [{sender: req.query.id}, {receiver: req.user._id}]}
+    ]
+  }, (error, results) => {
+  console.log(results)
   })
 })
 

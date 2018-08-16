@@ -19,7 +19,7 @@ module.exports = function(passport) {
   router.post('/auth/local', passport.authenticate('local'), function(req, res) {
     console.log('local authenticated');
     console.log('@@auth/local', req.user)
-    res.json({'success':true})
+    res.json({'success':true, user: req.user})
   });
 
   // router.get(
