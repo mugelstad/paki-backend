@@ -20,7 +20,25 @@ var fs = require('fs');
 //Require mongoose for database
 var mongoose = require('mongoose');
 var { User, House, Work, Picture, Offer } =  require('./Users.js');
-// const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+
+// var firebase = require('firebase');
+//
+// //Initialize Firebase
+// var config = {
+//   apiKey: process.env.API_KEY,
+//   authDomain: process.env.PROJECT_ID,
+//   databaseURL: process.env.DATABASE_NAME,
+//   storageBucket: process.env.STORAGE_BUCKET,
+// };
+// firebase.initializeApp(config);
+
+// var storage = firebase.storage();
+// // Create a storage reference from our storage service
+// var storageRef = storage.ref();
+// // Create a child reference
+// // imagesRef now points to 'images'
+// var imagesRef = storageRef.child('images');
+// // var spaceRef = storageRef.child('images/space.jpg');
 
 mongoose.connect(process.env.MONGODB_URI, {useNewUrlParser: true})
 mongoose.connection.on('error', function(error){
@@ -162,7 +180,7 @@ app.post('/upload',  upload.array('photos[]', 6), function(req, res){
       (err, house) => { console.log('@@foundhouse', house) }
     )
     res.send({success: true})
-  }).catch(error => console.error(error))
+  }).catch(error => console.error('@@hellohellohellobackend1', error))
 })
 
 //Rendering pictures for each individual house
@@ -196,7 +214,7 @@ app.get('/switchInfo', function(req, res){
       })
       .catch(err => console.log(err))
     }
-  }) 
+  })
 })
 
 
@@ -325,9 +343,71 @@ app.get('/chat', function(req, res) {
     ]
   }, (error, results) => {
     console.log('@@sending back offers', results)
-    res.json({ success: true, offers: results })
+    var pictures = [];
+    var house;
+    var otherId;
+    results.map(result => {
+      (result.sender.toString() === req.user._id.toString()) ? otherId = result.receiver.toString() : otherId = result.sender.toString()
+      console.log('@@otherId', otherId);
+    })
+    User.findById(otherId, (error, otherUser) => {
+      if (error) console.error('@@hellohellohellobackend2', error);
+      var houseId = otherUser.house;
+      House.findById(houseId)
+      .populate('images')
+      .exec((error, foundHouse) => {
+         if (error) console.error('@@hellohellohellobackend3', error);
+         foundHouse ? house = foundHouse : console.error('House not found')
+         console.log('@@house', foundHouse);
+         foundHouse.images.map(pic => {
+           pictures = pictures.concat([pic.img.data.toString('base64')])
+         })
+         res.json({success: true, pictures: pictures, house: house, offers: results});
+       })
+     })
+    })
   })
-})
+
+  // app.get('/chat', function(req, res) {
+  //   var pictures = [];
+  //   var house;
+  //   var otherId;
+  //   Offer.find({
+  //     $or:
+  //       [{$and: [{sender: req.user._id}, {receiver: req.query.id}]},
+  //         {$and: [{sender: req.query.id}, {receiver: req.user._id}]}
+  //       ]
+  //   }).then(results => {
+  //
+  //     results.map(result => {
+  //       var otherId;
+  //       if (result.sender.toString() === req.user._id.toString()) {
+  //         otherId = result.receiver.toString();
+  //       } else {
+  //         otherId = result.sender.toString()
+  //       }
+  //
+  //       User.findById(otherId)
+  //         .then(otherUser => {
+  //           House.findById(otherUser.house)
+  //             .populate('images')
+  //             .exec()
+  //             .then(foundHouse => {
+  //               if(!foundHouse) {
+  //                 throw 'No house found';
+  //               }
+  //               house = foundHouse;
+  //               foundHouse.images.forEach(image => {
+  //                 pictures.push(image.img.data.toString('base64'));
+  //               })
+  //
+  //             })
+  //
+  //         })
+  //     });
+  //   });
+  //   res.json({success: true, pictures: pictures, house: house, offers: results})
+  // })
 
 app.listen(process.env.PORT || 1337);
 console.log('listening on port 1337')
