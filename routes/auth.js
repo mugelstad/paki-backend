@@ -4,6 +4,11 @@ var {User} = require('../Users');
 
 module.exports = function(passport) {
 
+  router.get('/findSession', function(req, res){
+    if (req.user) { res.json({ success: true })}
+    else { res.json({ success: false })}
+  })
+
   // POST registration page
   router.post('/register', function(req, res){
     //Create new User
@@ -17,8 +22,6 @@ module.exports = function(passport) {
 
   // POST Login page
   router.post('/auth/local', passport.authenticate('local'), function(req, res) {
-    console.log('local authenticated');
-    console.log('@@auth/local', req.user)
     res.json({'success':true, user: req.user})
   });
 
@@ -39,7 +42,7 @@ module.exports = function(passport) {
     // and destroys it
     req.logout();
     // sends back undefined
-    res.redirect('/');
+    res.json({ success: true })
   });
 
   // GET Logout page

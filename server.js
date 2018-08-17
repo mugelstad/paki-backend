@@ -9,6 +9,7 @@ var LocalStrategy = require('passport-local').Strategy
 var GoogleStrategy = require('passport-google-oauth20').Strategy;
 var FacebookStrategy = require('passport-facebook').Strategy;
 var session = require('express-session')
+var connectMongo = require('connect-mongo')
 
 //Multer to upload Pictures
 var multer = require('multer');
@@ -36,11 +37,13 @@ app.use(function(req, res, next) {
   next();
 });
 
+const MongoStore = connectMongo(session)
 app.use(session({
-  secret:'cat',
+  secret: process.env.SESSION,
   cookie:{
     maxAge: 60*60*1000
-  }
+  },
+  store: new MongoStore({ mongooseConnection: mongoose.connection })
 }))
 
 
@@ -75,8 +78,6 @@ passport.use(new LocalStrategy(
       }
       // if no user present, auth failed
       if (!user) {
-        //console.log(user);
-        //console.log('@@LocalStrategy, no user')
         return done(null, false, { message: 'Incorrect username.' });
       }
       // if passwords do not match, auth failed
@@ -122,16 +123,14 @@ app.post('/myHouse', function(req, res) {
 
 app.post('/myWork', function(req, res){
   //Create new Work
-  //console.log('@@mywork', req.user)
   var work = new Work({
     latitude: req.body.latitude,
     longitude: req.body.longitude,
     address: req.body.address})
   .save()
   .then(work => {
-    //console.log('@@mywork', work);
     //Find User by ID and add a Work feature to the User
-    User.findByIdAndUpdate(req.user._id, {$push:{work: work}}, {new: true}, (err, user) => {
+    User.findByIdAndUpdate(req.user._id, {$push: {work: work} }, {new: true}, (err, user) => {
       if (err){
         res.status(500).end(err.message)
       }
@@ -145,26 +144,29 @@ app.post('/myWork', function(req, res){
 
 //Uploading pictures
 app.post('/upload',  upload.array('photos[]', 6), function(req, res){
-  var houseId = req.houseId
 
   var saved = req.files.map(item => {
-    var picture = new Picture();
+     var picture = new Picture();
      var bitMap = fs.readFileSync(item.path)
-     var data = new Buffer(bitMap)//.toString('base64');
+     var data = new Buffer(bitMap)
      picture.img.data = data;
      picture.img.contentType = item.mimetype;
      return picture.save();
   })
 
-  Promise.all(saved).then( () => {
+  Promise.all(saved).then((result) => {
+    var imgArr = result.map(img => img._id)
+    console.log('@@mappedresult', imgArr)
+    House.findByIdAndUpdate(req.user.house,
+      { $push: { images: { $each: imgArr }}}, {new: true},
+      (err, house) => { console.log('@@foundhouse', house) }
+    )
     res.send({success: true})
   }).catch(error => console.error(error))
 })
 
 //Rendering pictures for each individual house
 app.get('/switchInfo', function(req, res){
-  //console.log('@@switchInfo', req.user)
-  //console.log('@@switchInfo houseid', req.query.houseId);
   //otherhouse
   var pictures = [];
   var otherhouse;
@@ -172,7 +174,6 @@ app.get('/switchInfo', function(req, res){
   House.findById(req.query.houseId)
   .populate('images')
   .exec((err, result) => {
-    // console.log('@@switchInfo populated',result)
     if (err) {
       res.json({success: false})
     }
@@ -181,25 +182,21 @@ app.get('/switchInfo', function(req, res){
         pictures = pictures.concat([pic.img.data.toString('base64')]);
       })
       otherhouse = result;
-      // console.log('@@switchInfo populated2', otherhouse)
+      House.findById(req.user.house)
+      .then(house => {
+        userhouse = house
+        var response = {
+          success: true,
+          pictures: pictures,
+          otherhouse: otherhouse,
+          userhouse: userhouse
+        }
+        console.log('@@response', response)
+        res.json(response)
+      })
+      .catch(err => console.log(err))
     }
-  })
-
-  House.findById(req.user.house)
-  .then(house => {
-    userhouse = house
-    //console.log('@@switchInfo populated3', otherhouse)
-    //console.log('@@switchinfo userhousefound', house)
-    var response = {
-      success: true,
-      pictures: pictures,
-      otherhouse: otherhouse,
-      userhouse: userhouse
-    }
-    //console.log(response)
-    res.json(response)
-  })
-  .catch(err => console.log(err))
+  }) 
 })
 
 
@@ -219,12 +216,10 @@ app.get('/photos', function(req, res){
 })
 
 app.get('/houses', function(req, res){
-  //console.log('@@made it to /houses');
   House.find({/*all*/}, (err, h) => {
     if (err){
       res.json({success: false})
     }
-    //console.log('@@houses', h);
     res.json({success: true, houses: h})
   })
 })
@@ -263,17 +258,12 @@ app.get('/saved', function(req, res) {
   User.findById(req.user._id)
   .populate('interested')
   .exec((err, result) => {
-    //console.log('@@/saved exec', result)
     if (err) {
       res.json({success: false, error: err})
     } else {
       res.json({success: true, houses: result.interested})
     }
   })
-  // .catch(error => {
-  //   console.log('@@/saved',error)
-  //   res.json({success: false, error: error})
-  // })
 })
 
 app.post('/sendOffer', function(req, res) {
@@ -334,7 +324,8 @@ app.get('/chat', function(req, res) {
      { $and: [{sender: req.query.id}, {receiver: req.user._id}]}
     ]
   }, (error, results) => {
-  console.log(results)
+    console.log('@@sending back offers', results)
+    res.json({ success: true, offers: results })
   })
 })
 
